@@ -109,7 +109,7 @@ function WeekDaySchedules({ name = '' }) {
 
   // 檢查時間重疊
   const handleCheckTimeOverlap = (startTime, endTime, index) => {
-    if (isEmpty(startTime) || isEmpty(endTime)) return false;
+    if (isEmpty(startTime) || isEmpty(endTime)) return true;
 
     // convert to minutes
     const startNum = parseTimeString(startTime);
