@@ -1,5 +1,17 @@
+import { useState } from 'react';
 import { VStack, Input, Box, Button, HStack, Text, Flex, Spacer, useToast } from '@chakra-ui/react';
 import { useForm, useFormContext, useFieldArray, Controller, FormProvider } from 'react-hook-form';
+
+import isEmpty from 'ramda/es/isEmpty';
+import equals from 'ramda/es/equals';
+import gt from 'ramda/es/gt';
+import gte from 'ramda/es/gte';
+import lte from 'ramda/es/lte';
+import evolve from 'ramda/es/evolve';
+import pipe from 'ramda/es/pipe';
+import toPairs from 'ramda/es/toPairs';
+import fromPairs from 'ramda/es/fromPairs';
+import map from 'ramda/es/map';
 
 // 720 -> 12:00
 function formatMinuteNumber(minutes) {
@@ -19,7 +31,16 @@ function parseTimeString(timeString = '00:00') {
   return parseInt(hours) * 60 + parseInt(minutes);
 }
 
+const transformSchedules = map(evolve({ start: parseTimeString, end: parseTimeString }));
+
+const transformWeekSchedulesData = pipe(
+  toPairs,
+  map(([weekDay, schedule]) => [weekDay, transformSchedules(schedule)]),
+  fromPairs
+);
+
 export default function ScheduleForm() {
+  const [time, setTime] = useState('');
   const toast = useToast({ position: 'top', duration: 2000 });
   const methods = useForm({
     defaultValues: {
@@ -36,6 +57,7 @@ export default function ScheduleForm() {
 
   return (
     <FormProvider {...methods}>
+      <Input type="time" value={time} onChange={(e) => setTime(e.target.value)}></Input>
       <VStack align="stretch" spacing={6}>
         <Box>
           <Text>Monday</Text>
@@ -68,7 +90,7 @@ export default function ScheduleForm() {
         <Button
           colorScheme="blue"
           onClick={handleSubmit((data) => {
-            console.log(data);
+            console.log(transformWeekSchedulesData(data));
             toast({ status: 'success', title: 'Success!!' });
           })}
         >
@@ -89,22 +111,37 @@ function WeekDaySchedules({ name = '' }) {
 
   // 檢查時間重疊
   const handleCheckTimeOverlap = (startTime, endTime, index) => {
-    if (startTime > endTime) return false;
+    if (isEmpty(startTime) || isEmpty(endTime)) return false;
+
+    // convert to minutes
+    const startNum = parseTimeString(startTime);
+    const endNum = parseTimeString(endTime);
+
+    if (startNum > endNum) return false;
 
     const schedulesOfWeekDay = getValues(name);
 
-    if (schedulesOfWeekDay.length === 1) return true;
+    if (equals(schedulesOfWeekDay.length, 1)) return true;
 
     // invalid case
     // |-------|   or   |-------| or |-------| or  |----|
     //   |-------|    |-------|       |----|      |------|
     const timeOverlap = schedulesOfWeekDay.some((schedule, i) => {
-      const { start, end } = schedule;
+      if (isEmpty(schedule.start) || isEmpty(schedule.end)) return false;
+
+      // convert to minutes
+      const parsedSchedule = evolve(
+        {
+          start: parseTimeString,
+          end: parseTimeString,
+        },
+        schedule
+      );
 
       // self and invalid time will be ignored
-      if (i === index || start > end) return false;
+      if (equals(i, index) || gt(parsedSchedule.start, parsedSchedule.end)) return false;
 
-      return !(startTime >= end || endTime <= start);
+      return !(gte(startNum, parsedSchedule.end) || lte(endNum, parsedSchedule.start));
     });
 
     return !timeOverlap;
@@ -121,17 +158,19 @@ function WeekDaySchedules({ name = '' }) {
                 name={`${name}.${index}.start`}
                 render={({ field, fieldState: { invalid } }) => (
                   <Input
+                    w="10rem"
                     isInvalid={invalid}
                     type="time"
                     {...field}
-                    value={formatMinuteNumber(field.value)}
+                    value={field.value}
                     onChange={(e) => {
-                      field.onChange(parseTimeString(e.target.value));
+                      field.onChange(e.target.value);
                       trigger(name);
                     }}
                   />
                 )}
                 rules={{
+                  required: true,
                   validate: (v) =>
                     handleCheckTimeOverlap(v, getValues(`${name}.${index}.end`), index),
                 }}
@@ -142,17 +181,19 @@ function WeekDaySchedules({ name = '' }) {
                 name={`${name}.${index}.end`}
                 render={({ field, fieldState: { invalid } }) => (
                   <Input
+                    w="10rem"
                     isInvalid={invalid}
                     type="time"
                     {...field}
-                    value={formatMinuteNumber(field.value)}
+                    value={field.value}
                     onChange={(e) => {
-                      field.onChange(parseTimeString(e.target.value));
+                      field.onChange(e.target.value);
                       trigger(name);
                     }}
                   />
                 )}
                 rules={{
+                  required: true,
                   validate: (v) =>
                     handleCheckTimeOverlap(getValues(`${name}.${index}.start`), v, index),
                 }}
@@ -171,7 +212,7 @@ function WeekDaySchedules({ name = '' }) {
           </Flex>
         </Box>
       ))}
-      <Button w="full" onClick={() => append({ start: 0, end: 1439 })}>
+      <Button w="full" onClick={() => append({ start: '00:00', end: '23:59' })}>
         add
       </Button>
     </VStack>
