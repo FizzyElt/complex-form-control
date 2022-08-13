@@ -40,7 +40,6 @@ const transformWeekSchedulesData = pipe(
 );
 
 export default function ScheduleForm() {
-  const [time, setTime] = useState('');
   const toast = useToast({ position: 'top', duration: 2000 });
   const methods = useForm({
     defaultValues: {
@@ -57,7 +56,6 @@ export default function ScheduleForm() {
 
   return (
     <FormProvider {...methods}>
-      <Input type="time" value={time} onChange={(e) => setTime(e.target.value)}></Input>
       <VStack align="stretch" spacing={6}>
         <Box>
           <Text>Monday</Text>
